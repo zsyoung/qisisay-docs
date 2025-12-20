@@ -1,124 +1,57 @@
-const fs = require('fs')
-const path = require('path')
+name: Deploy VitePress Site
 
-/**
- * ===== 配置 =====
- */
+on:
+  push:
+    branches:
+      - main
 
-const WRITE_ROOT = '/Users/mlamp/Library/CloudStorage/OneDrive-个人/write/日更'
-const DOCS_ROOT = path.resolve(process.cwd(), 'docs')
-const TIMELINE_DIR = path.join(DOCS_ROOT, 'timeline')
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 
-/**
- * ===== 工具函数 =====
- */
+concurrency:
+  group: pages
+  cancel-in-progress: true
 
-function hasChinese(text) {
-  return /[\u4e00-\u9fa5]/.test(text)
-}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-// 安全生成可访问 URL（保留真实文件名）
-function makeSafeLink(relativePath) {
-  return encodeURI(relativePath)
-}
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-// 从 md 文件中提取标题
-function extractTitle(filePath, fallback) {
-  const content = fs.readFileSync(filePath, 'utf-8')
+      # ✅ 更稳：没有 package-lock.json 也能装
+      - name: Install dependencies
+        run: npm install
 
-  const fm = content.match(/title:\s*(.+)/)
-  if (fm) return fm[1].replace(/['"]/g, '').trim()
+      # ✅ 如果你线上也需要自动生成索引（推荐）
+      - name: Generate pages
+        run: |
+          node scripts/generate-timeline.js
+          node scripts/generate-latest.js
+          node scripts/generate-tags.js
 
-  const h1 = content.match(/^#\s+(.+)$/m)
-  if (h1) return h1[1].trim()
+      - name: Build VitePress
+        run: npm run docs:build
 
-  return fallback
-}
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/.vitepress/dist
 
-// 清理标题前多余分隔符
-function cleanTitle(title) {
-  return title.replace(/^[｜\-\s]+/, '').trim()
-}
-
-/**
- * ===== 主逻辑 =====
- */
-
-function generateTimeline(year) {
-  const yearDir = path.join(WRITE_ROOT, year)
-  if (!fs.existsSync(yearDir)) return
-
-  const months = fs.readdirSync(yearDir).sort().reverse()
-  let output = `# ${year} 年\n\n`
-
-  months.forEach(month => {
-    const monthDir = path.join(yearDir, month)
-    if (!fs.statSync(monthDir).isDirectory()) return
-
-    output += `## ${Number(month)} 月\n\n`
-
-    const files = fs.readdirSync(monthDir)
-      .filter(f => f.endsWith('.md'))
-      .sort()
-      .reverse()
-
-    files.forEach(file => {
-      const fullPath = path.join(monthDir, file)
-
-      const basename = file.replace(/\.md$/, '')
-      const isDatePrefix = /^\d{4}/.test(basename)
-
-      let dayPart = ''
-      let titleFallback = basename
-
-      if (isDatePrefix) {
-        const mm = basename.slice(0, 2)
-        const dd = basename.slice(2, 4)
-
-        // 纯日期文件名：1219.md
-        if (basename.length === 4) {
-          dayPart = `${mm}-${dd}`
-          titleFallback = basename
-        } else {
-          dayPart = `${mm}-${dd}`
-          titleFallback = basename.slice(4)
-        }
-      }
-
-      let title
-
-      // 文件名里本身就有中文，直接用文件名（最稳）
-      if (hasChinese(titleFallback)) {
-        title = titleFallback
-      } else {
-        title = extractTitle(fullPath, titleFallback)
-      }
-
-      title = cleanTitle(title)
-
-      const relativeLink = `/日更/${year}/${month}/${file}`
-      const safeLink = makeSafeLink(relativeLink)
-
-      if (dayPart) {
-        output += `- **${dayPart}｜[${title}](${safeLink})**\n`
-      } else {
-        output += `- **[${title}](${safeLink})**\n`
-      }
-    })
-
-    output += '\n'
-  })
-
-  fs.mkdirSync(TIMELINE_DIR, { recursive: true })
-  fs.writeFileSync(path.join(TIMELINE_DIR, `${year}.md`), output, 'utf-8')
-
-  console.log(`✅ ${year} timeline 生成完成`)
-}
-
-/**
- * ===== 执行 =====
- */
-
-fs.readdirSync(WRITE_ROOT)
-  .filter(y => /^\d{4}$/.test(y))
-  .forEach(generateTimeline)
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
