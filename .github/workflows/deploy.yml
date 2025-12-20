@@ -26,17 +26,10 @@ jobs:
         with:
           node-version: 20
 
-      # ✅ 更稳：没有 package-lock.json 也能装
       - name: Install dependencies
         run: npm install
 
-      # ✅ 如果你线上也需要自动生成索引（推荐）
-      - name: Generate pages
-        run: |
-          node scripts/generate-timeline.js
-          node scripts/generate-latest.js
-          node scripts/generate-tags.js
-
+      # ✅ 关键：不在 CI 里跑 generate 脚本
       - name: Build VitePress
         run: npm run docs:build
 
