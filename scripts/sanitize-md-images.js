@@ -4,7 +4,6 @@ const path = require('path')
 
 const ROOT = path.resolve(process.cwd(), 'docs/日更')
 
-// 只处理 markdown
 function walk(dir, out = []) {
   for (const name of fs.readdirSync(dir)) {
     const p = path.join(dir, name)
@@ -15,18 +14,39 @@ function walk(dir, out = []) {
   return out
 }
 
-// 把本机绝对路径 / file:// 图片引用替换掉
 function sanitize(content) {
-  // 1) Markdown 图片/链接里出现 (/Users/..)
-  content = content.replace(/\((file:\/\/\/)?\/Users\/[^\)]+\.(png|jpg|jpeg|gif|webp)\)/gi, '(#)')
+  // A) 本机绝对路径资源（Markdown 链接/图片）
+  content = content.replace(
+    /\((file:\/\/\/)?\/Users\/[^\)]+\.(png|jpg|jpeg|gif|webp)\)/gi,
+    '(#)'
+  )
 
-  // 2) HTML img src="/Users/.."
-  content = content.replace(/src=(["'])(file:\/\/\/)?\/Users\/[^"']+\.(png|jpg|jpeg|gif|webp)\1/gi, 'src=$1#$1')
+  // B) 本机绝对路径资源（HTML img/src/href）
+  content = content.replace(
+    /\b(src|href)=(["'])(file:\/\/\/)?\/Users\/[^"']+\.(png|jpg|jpeg|gif|webp)\2/gi,
+    '$1=$2#$2'
+  )
+
+  // C) 处理空链接、只有 ./、只有 / 的情况（Markdown）
+  //    例如: ![](./)  [](./)  ![](/)  []()  ![]()
+  content = content.replace(/\]\(\s*\.\/*\s*\)/g, '](#)')
+  content = content.replace(/\]\(\s*\/\s*\)/g, '](#)')
+  content = content.replace(/\]\(\s*\)/g, '](#)')
+
+  // D) 处理 HTML 里 src/href="./" 或 src/href="" 或 src/href="/"
+  content = content.replace(/\b(src|href)=(["'])(\s*\.\/\s*)\2/gi, '$1=$2#$2')
+  content = content.replace(/\b(src|href)=(["'])(\s*)\2/gi, '$1=$2#$2')
+  content = content.replace(/\b(src|href)=(["'])(\s*\/\s*)\2/gi, '$1=$2#$2')
 
   return content
 }
 
-const files = fs.existsSync(ROOT) ? walk(ROOT) : []
+if (!fs.existsSync(ROOT)) {
+  console.log('ℹ️ docs/日更 not found, skip sanitize')
+  process.exit(0)
+}
+
+const files = walk(ROOT)
 let changed = 0
 
 for (const f of files) {
