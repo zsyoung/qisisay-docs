@@ -32,6 +32,9 @@ jobs:
       - name: Sync posts into docs
         run: bash scripts/sync-content.sh
 
+      - name: Sanitize filenames (%, #, ?)
+        run: node scripts/sanitize-filenames.js
+
       - name: Sanitize local image paths
         run: node scripts/sanitize-md-images.js
 
