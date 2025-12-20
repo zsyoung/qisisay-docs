@@ -13,6 +13,10 @@ const TIMELINE_DIR = path.join(DOCS_ROOT, 'timeline')
  * ===== 工具函数 =====
  */
 
+function hasChinese(text) {
+  return /[\u4e00-\u9fa5]/.test(text)
+}
+
 // 安全生成可访问 URL（保留真实文件名）
 function makeSafeLink(relativePath) {
   return encodeURI(relativePath)
@@ -44,7 +48,7 @@ function generateTimeline(year) {
   const yearDir = path.join(WRITE_ROOT, year)
   if (!fs.existsSync(yearDir)) return
 
-  const months = fs.readdirSync(yearDir).sort()
+  const months = fs.readdirSync(yearDir).sort().reverse()
   let output = `# ${year} 年\n\n`
 
   months.forEach(month => {
@@ -81,7 +85,15 @@ function generateTimeline(year) {
         }
       }
 
-      let title = extractTitle(fullPath, titleFallback)
+      let title
+
+      // 文件名里本身就有中文，直接用文件名（最稳）
+      if (hasChinese(titleFallback)) {
+        title = titleFallback
+      } else {
+        title = extractTitle(fullPath, titleFallback)
+      }
+
       title = cleanTitle(title)
 
       const relativeLink = `/日更/${year}/${month}/${file}`
