@@ -3,6 +3,15 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   base: '/',
   ignoreDeadLinks: true,
+
+  vite: {
+    build: {
+      rollupOptions: {
+        external: (id) => id === './' || id === './' || id === './'
+      }
+    }
+  },
+
   themeConfig: {
     sidebar: {
       '/timeline/': [
