@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitepress'
 
 export default defineConfig({
-  base: '/qisisay-docs/',
+  base: '/',
   ignoreDeadLinks: true,
   themeConfig: {
     sidebar: {
