@@ -15,42 +15,36 @@ function walk(dir, out = []) {
 }
 
 function sanitize(content) {
-  // A) 本机绝对路径资源（Markdown 括号）
+  // 1) 任何 /Users/... 本机路径（Markdown 链接/图片）
+  //    例如: ![](/Users/...png) 或 ![](file:///Users/...png)
   content = content.replace(
-    /\((file:\/\/\/)?\/Users\/[^\)\s]+\.(png|jpg|jpeg|gif|webp)\)/gi,
+    /\((\s*)(file:\/\/\/)?\/Users\/[^\)\s]+(\s*)\)/gi,
     '(#)'
   )
 
-  // B) 本机绝对路径资源（HTML 属性：有引号）
+  // 2) 任何 /Users/... 本机路径（HTML src/href，有无引号都兜）
   content = content.replace(
-    /\b(src|href)=(["'])(file:\/\/\/)?\/Users\/[^"']+\.(png|jpg|jpeg|gif|webp)\2/gi,
-    '$1=$2#$2'
+    /\b(src|href)\s*=\s*(["']?)\s*(file:\/\/\/)?\/Users\/[^"'\s>]+\s*\2/gi,
+    '$1="#"'
   )
 
-  // C) Markdown 内的空链接 / 只有 ./ / 只有 / / 空括号
-  //    兼容 () 以及 (<...>) 写法
-  content = content.replace(/\]\(\s*<\s*\.\/\s*>\s*\)/g, '](#)')
-  content = content.replace(/\]\(\s*<\s*\/\s*>\s*\)/g, '](#)')
-  content = content.replace(/\]\(\s*<\s*>\s*\)/g, '](#)')
+  // 3) 兜底：任何形式的 "./" 作为 URL（Markdown 括号形式，带 title 也算）
+  //    ](./)  ](./ "t")  ](<./>)  ![](./)
+  content = content.replace(/\]\(\s*<\s*\.\/\s*>\s*([^\)]*)\)/g, '](#$1)')
+  content = content.replace(/\]\(\s*\.\/\s*([^\)]*)\)/g, '](#$1)')
 
-  content = content.replace(/\]\(\s*\.\/\s*\)/g, '](#)')
-  content = content.replace(/\]\(\s*\/\s*\)/g, '](#)')
+  // 4) 参考式链接定义：[id]: ./   或 [id]: ./ "title"
+  content = content.replace(/^(\[[^\]]+\]:)\s*\.\/\s*(.*)$/gim, '$1 # $2')
+
+  // 5) HTML src/href="./" 或 src/href=./（有无引号都兜）
+  content = content.replace(/\b(src|href)\s*=\s*(["'])\s*\.\/\s*\2/gi, '$1=$2#$2')
+  content = content.replace(/\b(src|href)\s*=\s*\.\/\b/gi, '$1=#')
+
+  // 6) 再兜底：空链接 / 只有 /（防止下一轮又炸）
   content = content.replace(/\]\(\s*\)/g, '](#)')
-
-  // D) HTML 属性：src/href="./"、src/href="/"、src/href=""（有引号）
-  content = content.replace(/\b(src|href)=(["'])(\s*\.\/\s*)\2/gi, '$1=$2#$2')
-  content = content.replace(/\b(src|href)=(["'])(\s*\/\s*)\2/gi, '$1=$2#$2')
-  content = content.replace(/\b(src|href)=(["'])(\s*)\2/gi, '$1=$2#$2')
-
-  // E) HTML 属性：src=./ 或 href=./（无引号，含多余空格也兜住）
-  content = content.replace(/\b(src|href)=\s*\.\/\b/gi, '$1=#')
-  content = content.replace(/\b(src|href)=\s*\/\b/gi, '$1=#')
-
-  // F) 参考式链接定义：[xxx]: ./   或 [xxx]: /   或 [xxx]:
-  //    这类最容易导致 rollup 解析 ./ 失败
-  content = content.replace(/^(\[[^\]]+\]:)\s*\.\/\s*$/gim, '$1 #')
-  content = content.replace(/^(\[[^\]]+\]:)\s*\/\s*$/gim, '$1 #')
-  content = content.replace(/^(\[[^\]]+\]:)\s*$/gim, '$1 #')
+  content = content.replace(/\]\(\s*\/\s*([^\)]*)\)/g, '](#$1)')
+  content = content.replace(/\b(src|href)\s*=\s*(["'])\s*\2/gi, '$1=$2#$2')
+  content = content.replace(/\b(src|href)\s*=\s*\/\b/gi, '$1=#')
 
   return content
 }
