@@ -1,8 +1,11 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
-# 进入仓库根目录（可选：保证从任何位置运行都正确）
 cd "$(dirname "$0")/.."
 
-# 同步“源日更”到“发布日更”
-rsync -a --delete "日更/" "docs/日更/"
+# 目标目录：保证是干净的真实目录
+rm -rf "docs/日更"
+mkdir -p "docs/日更"
+
+# 同步源文章到发布目录
+rsync -a "日更/" "docs/日更/"
