@@ -25,20 +25,29 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Sync posts into docs
         run: bash scripts/sync-content.sh
 
-      - name: Sanitize filenames (%, #, ?)
+      - name: Sanitize filenames
         run: node scripts/sanitize-filenames.js
 
-      - name: Sanitize local image paths
+      - name: Sanitize markdown images
         run: node scripts/sanitize-md-images.js
 
-      # ✅ 关键：不在 CI 里跑 generate 脚本
+      - name: Generate pages (timeline/tags/latest)
+        run: |
+          node scripts/generate-timeline.js
+          node scripts/generate-tags.js
+          node scripts/generate-latest.js
+
+      - name: Clean VitePress cache
+        run: rm -rf docs/.vitepress/.temp docs/.vitepress/cache
+
       - name: Build VitePress
         run: npm run docs:build
 
