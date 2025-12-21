@@ -3,10 +3,17 @@ const path = require('path')
 
 /**
  * ===== 配置 =====
+ *
+ * 默认扫描：docs/日更（CI 一定存在：你在 workflow 里先跑了 sync-content.sh）
+ * 如需本地指定其他目录，可设置环境变量 DAILY_DIR
+ *   例：DAILY_DIR="日更" node scripts/generate-timeline.js
  */
 
-const WRITE_ROOT = '/Users/mlamp/Library/CloudStorage/OneDrive-个人/write/日更'
 const DOCS_ROOT = path.resolve(process.cwd(), 'docs')
+const WRITE_ROOT = process.env.DAILY_DIR
+  ? path.resolve(process.cwd(), process.env.DAILY_DIR)
+  : path.join(DOCS_ROOT, '日更')
+
 const TIMELINE_DIR = path.join(DOCS_ROOT, 'timeline')
 
 /**
@@ -96,6 +103,7 @@ function generateTimeline(year) {
 
       title = cleanTitle(title)
 
+      // 注意：这里生成的是站内访问路径（docs 为站点根）
       const relativeLink = `/日更/${year}/${month}/${file}`
       const safeLink = makeSafeLink(relativeLink)
 
@@ -118,6 +126,11 @@ function generateTimeline(year) {
 /**
  * ===== 执行 =====
  */
+
+if (!fs.existsSync(WRITE_ROOT)) {
+  console.log(`ℹ️ 日更 root not found, skip timeline: ${WRITE_ROOT}`)
+  process.exit(0)
+}
 
 fs.readdirSync(WRITE_ROOT)
   .filter(y => /^\d{4}$/.test(y))
