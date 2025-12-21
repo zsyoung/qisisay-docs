@@ -4,8 +4,7 @@ const path = require('path')
 
 const ROOT = path.resolve(process.cwd(), 'docs/日更')
 
-// 文件名里这些字符最容易导致 VitePress/路由 decodeURIComponent 崩：% # ?
-// 用全角替换，显示几乎不变，URL/构建稳定
+// 这些在“文件名/URL”层面极易炸
 const REPLACE_MAP = new Map([
   ['%', '％'],
   ['#', '＃'],
@@ -22,9 +21,24 @@ function walk(dir, out = []) {
   return out
 }
 
-function safeBaseName(base) {
+// 归一化文件名：
+// 1) 去掉 .md 前的多余空格： "xxx  .md" / "xxx .md" -> "xxx.md"
+// 2) 去掉末尾空白
+// 3) 特殊字符替换（% # ? -> 全角）
+function normalizeBaseName(base) {
   let n = base
-  for (const [a, b] of REPLACE_MAP.entries()) n = n.split(a).join(b)
+
+  // 把 ".md" 前的空格清掉
+  n = n.replace(/\s+\.md$/i, '.md')
+
+  // 去掉末尾空白（保险）
+  n = n.replace(/\s+$/g, '')
+
+  // 替换危险字符
+  for (const [a, b] of REPLACE_MAP.entries()) {
+    n = n.split(a).join(b)
+  }
+
   return n
 }
 
@@ -33,10 +47,7 @@ if (!fs.existsSync(ROOT)) {
   process.exit(0)
 }
 
-const files = walk(ROOT)
-
-// 先按路径长度倒序，避免极端情况下的覆盖问题
-files.sort((a, b) => b.length - a.length)
+const files = walk(ROOT).sort((a, b) => b.length - a.length)
 
 let renamed = 0
 let collisions = 0
@@ -44,12 +55,13 @@ let collisions = 0
 for (const file of files) {
   const dir = path.dirname(file)
   const base = path.basename(file)
-  const next = safeBaseName(base)
+  const next = normalizeBaseName(base)
+
   if (next === base) continue
 
   let target = path.join(dir, next)
 
-  // 如果重名，追加一个稳定后缀
+  // 重名冲突：追加稳定后缀
   if (fs.existsSync(target)) {
     collisions++
     const ext = path.extname(next)
@@ -61,4 +73,4 @@ for (const file of files) {
   renamed++
 }
 
-console.log(`✅ filename sanitize done. renamed: ${renamed}, collisions: ${collisions}`)
+console.log(`✅ filename normalize done. renamed: ${renamed}, collisions: ${collisions}`)
