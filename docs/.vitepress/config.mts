@@ -1,6 +1,14 @@
 import { defineConfig } from 'vitepress'
+//import { getThemeConfig } from '@sugarat/theme/node'
+
+//const blogTheme = getThemeConfig({
+  // 先保持默认即可；想关掉内置搜索可用：search: false
+  // search: false,
+//})
 
 export default defineConfig({
+  //extends: blogTheme,
+
   base: '/',
   title: "启四说",
   description: "投资与写作笔记归档",
