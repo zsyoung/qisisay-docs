@@ -9,5 +9,3 @@ hero:
 
 <!--@include: ./latest.md-->
 
-
-

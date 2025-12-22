@@ -2,7 +2,10 @@
 set -euo pipefail
 
 # ====== 配置区 ======
-REPO_DIR="/Users/mlamp/Library/CloudStorage/OneDrive-个人/write"
+REPO_DIR="$HOME/projects/write"
+# 写作源稿（只放在 OneDrive，同步它就行）
+SOURCE_DAILY_DIR="/Users/mlamp/Library/CloudStorage/OneDrive-个人/write/日更"
+
 BRANCH="main"
 LOG_DIR="$HOME/Library/Logs"
 LOG_FILE="$LOG_DIR/qisisay-autopublish.log"
@@ -44,20 +47,24 @@ fi
 log "Changes detected. Running pipeline..."
 
 # ===== 流水线 =====
+# 注意：请确保 scripts/sync-content.sh 已改为从 $SOURCE_DAILY_DIR 同步到 docs/日更
 bash scripts/sync-content.sh
 
-# ===== 草稿剔除（关键）：源稿前 5 行有 #draft，则从 docs 构建输入移除（只删 docs，不动源稿）=====
-# 这样本地 npm run docs:build 也不会生成草稿页面
-find "$REPO_DIR/日更" -type f -name "*.md" -print0 \
-| while IFS= read -r -d '' src; do
-    if head -n 5 "$src" 2>/dev/null | rg -qi '^#draft'; then
-      rel="${src#"$REPO_DIR/日更/"}"
-      dst="$REPO_DIR/docs/日更/$rel"
-      rm -f "$dst"
-      log "Draft removed from docs build input: $rel"
-    fi
-  done
-# ================================================================================================
+# ===== 草稿剔除（关键）：扫描 OneDrive 源稿，命中 #draft 则从 docs 构建输入移除（只删 docs，不动源稿）=====
+if [ -d "$SOURCE_DAILY_DIR" ]; then
+  find "$SOURCE_DAILY_DIR" -type f -name "*.md" -print0 \
+  | while IFS= read -r -d '' src; do
+      if head -n 5 "$src" 2>/dev/null | rg -qi '^#draft'; then
+        rel="${src#"$SOURCE_DAILY_DIR/"}"
+        dst="$REPO_DIR/docs/日更/$rel"
+        rm -f "$dst"
+        log "Draft removed from docs build input: $rel"
+      fi
+    done
+else
+  log "WARN: SOURCE_DAILY_DIR not found: $SOURCE_DAILY_DIR (skip draft removal)"
+fi
+# ===============================================================================================================
 
 node scripts/sanitize-filenames.js
 node scripts/sanitize-md-images.js
@@ -71,23 +78,26 @@ npm run docs:build
 # 暂存全部
 git add -A
 
-# ======（可选保险）草稿排除：含 #draft 的源稿不提交（但其它照发）======
-# 这段不是必须（因为上面已经从 docs 输入删了），但保留能防止误提交源稿目录里的草稿
+# ======（可选保险）草稿排除：避免把仓库里的 日更/... 草稿提交（如果你仓库里仍保留日更目录）======
+# 如果你已做到“仓库不再存日更，只从 OneDrive 同步到 docs/日更”，这一段不会产生影响，也可以保留当保险。
 DRAFT_SRC_FILES="$(
-  find "$REPO_DIR/日更" -type f -name "*.md" -print0 \
-  | while IFS= read -r -d '' f; do
-      head -n 5 "$f" 2>/dev/null | rg -qi '^#draft' && echo "$f" || true
-    done
+  if [ -d "$SOURCE_DAILY_DIR" ]; then
+    find "$SOURCE_DAILY_DIR" -type f -name "*.md" -print0 \
+    | while IFS= read -r -d '' f; do
+        head -n 5 "$f" 2>/dev/null | rg -qi '^#draft' && echo "$f" || true
+      done
+  fi
 )"
 
 if [ -n "${DRAFT_SRC_FILES:-}" ]; then
-  log "Draft source files detected (will NOT be committed):"
+  log "Draft source files detected (will NOT be committed if present in repo):"
   echo "$DRAFT_SRC_FILES" | tee -a "$LOG_FILE"
 
   while IFS= read -r f; do
     [ -z "$f" ] && continue
-    rel="${f#"$REPO_DIR/"/}"
-    git reset -q -- "$rel" || true
+    # 将 OneDrive 源稿路径映射回仓库相对路径：日更/...
+    rel_in_repo="日更/${f#"$SOURCE_DAILY_DIR/"}"
+    git reset -q -- "$rel_in_repo" || true
   done <<< "$DRAFT_SRC_FILES"
 fi
 # =================================================================

@@ -1,11 +1,12 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+# ====== 路径配置 ======
+SOURCE_DIR="/Users/mlamp/Library/CloudStorage/OneDrive-个人/write/日更"
+TARGET_DIR="$(pwd)/docs/日更"
+# =====================
 
-# 目标目录：保证是干净的真实目录
-rm -rf "docs/日更"
-mkdir -p "docs/日更"
+rm -rf "$TARGET_DIR"
+mkdir -p "$TARGET_DIR"
 
-# 同步源文章到发布目录
-rsync -a "日更/" "docs/日更/"
+rsync -a --delete "$SOURCE_DIR/" "$TARGET_DIR/"
