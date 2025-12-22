@@ -104,8 +104,10 @@ function generateTimeline(year) {
       title = cleanTitle(title)
 
       // 注意：这里生成的是站内访问路径（docs 为站点根）
-      const relativeLink = `/日更/${year}/${month}/${file}`
+      const stem = file.replace(/\.md$/i, '')
+      const relativeLink = `/日更/${year}/${month}/${stem}`
       const safeLink = makeSafeLink(relativeLink)
+
 
       if (dayPart) {
         output += `- **${dayPart}｜[${title}](${safeLink})**\n`

@@ -1,227 +1,172 @@
 #!/usr/bin/env node
 /**
- * sanitize-md-images.js (SAFE VERSION)
+ * sanitize-md-images.js (COVER VERSION / SAFE)
  *
- * Goal:
- * - Only remove image syntaxes that are known to break VitePress build:
- *   - Empty / placeholder images: ![](), ![](#...), ![](#)
- *   - Local absolute paths: /Users/..., file:///Users/..., Windows drives, Typora "#Users/..."
- * - NEVER delete http/https images (mdnice/OSS/etc). If it's remote, we keep it.
+ * ✅ 目标：只清理“会炸 VitePress 的本地/占位图片”，绝不动任何 http/https 外链图片
  *
- * A small removal report will be written to: sanitize-md-images.removed.log (repo root)
+ * 会被删除（仅删除整条图片语法，不会动正文其它内容）：
+ * 1) 本地绝对路径（macOS）:
+ *    ![](/Users/...)
+ *    ![](file:///Users/...)
+ * 2) Typora 伪链接（常见）：#Users/...typora-user-images/...
+ *    ![](#Users/...)
+ *    ![]( #Users/... )
+ * 3) Windows 本地路径：
+ *    ![](C:\...)
+ *    ![](file:///C:/...)
+ * 4) 空/占位：
+ *    ![]()
+ *    ![]( )
+ *    ![](#)
+ *    ![](#anything)
+ *
+ * ✅ 绝不处理（完全保留）：
+ * - 所有 http/https 图片（包括 files.mdnice.com/user/... 这类）
+ * - 带 %、带 querystring 的外链
+ * - 相对路径图片（./img/a.png、/img/a.png）
+ *
+ * 额外：
+ * - 输出删除报告：sanitize-md-images.removed.log（便于追查“哪张图被删了”）
  */
 
 const fs = require("fs");
 const path = require("path");
 
-const DOCS_DIR = path.resolve(process.cwd(), "docs");
-const REPORT_PATH = path.resolve(process.cwd(), "sanitize-md-images.removed.log");
+const ROOT = process.cwd();
+const TARGET_DIR = path.resolve(ROOT, "docs"); // 你的流水线是在 sync -> sanitize -> build，所以处理 docs 最合理
+const REPORT_PATH = path.resolve(ROOT, "sanitize-md-images.removed.log");
 
-const IMG_EXT_RE = /\.(png|jpe?g|gif|webp|svg|avif)$/i;
-
-function isHttpUrl(url) {
-  return /^https?:\/\//i.test(url);
+function ensureDir(p) {
+  fs.mkdirSync(p, { recursive: true });
 }
 
-function stripQueryHash(url) {
-  return url.split("#")[0].split("?")[0];
-}
-
-function normalizeAngleWrapped(url) {
-  const trimmed = String(url || "").trim();
-  if (trimmed.startsWith("<") && trimmed.endsWith(">")) {
-    return trimmed.slice(1, -1).trim();
-  }
-  return trimmed;
-}
-
-function isMacLocalPath(u) {
-  // /Users/... or file:///Users/...
-  return /^(?:file:\/\/\/)?\/Users\/.+/i.test(u);
-}
-
-function isWindowsLocalPath(u) {
-  // C:\...  or C:/... or file:///C:/...
-  return /^(?:file:\/\/\/)?[A-Za-z]:(?:\\|\/).+/.test(u);
-}
-
-function isPlaceholderOrAnchor(u) {
-  // ![]() or ![](#) or ![](#anything) — includes Typora "#Users/..."
-  if (!u) return true;
-  if (u === "#") return true;
-  if (u.startsWith("#")) return true;
-  return false;
-}
-
-function looksLikeDirectoryAsImage(u) {
-  // Some bad cases seen in VitePress temp import errors:
-  // ![](/日更/2024/04)  or ![](docs/日更/2024/04)
-  // Only delete if it DOES NOT look like a real image file.
-  const clean = stripQueryHash(u).trim();
-
-  // If it has image extension, it's an actual file, keep it.
-  if (IMG_EXT_RE.test(clean)) return false;
-
-  // Directory-ish patterns (allow trailing slash)
-  if (/^(?:\.{0,2}\/)?docs\/日更\/\d{4}\/\d{2}\/?$/.test(clean)) return true;
-  if (/^\/?日更\/\d{4}\/\d{2}\/?$/.test(clean)) return true;
-
-  return false;
-}
-
-/**
- * Replace Markdown images ![alt](url) by predicate(url, alt) => true remove
- * NOTE: this is a pragmatic regex (typical URLs). It won't perfectly parse nested parentheses.
- */
-function removeMarkdownImageByUrlPredicate(content, predicate, report, filePath) {
-  return content.replace(/!\[([^\]]*)\]\(\s*([^)]+?)\s*\)/g, (m, alt, rawUrl) => {
-    const url = normalizeAngleWrapped(rawUrl);
-
-    // NEVER delete remote images
-    if (isHttpUrl(url)) return m;
-
-    if (predicate(url, alt)) {
-      report.push(`[MD] ${filePath}: ${m}`);
-      return "";
-    }
-    return m;
-  });
-}
-
-/**
- * Replace HTML images <img ... src="..."> by predicate(src) => true remove
- */
-function removeHtmlImageBySrcPredicate(content, predicate, report, filePath) {
-  // Handles src="..." and src='...'
-  return content.replace(
-    /<img\b[^>]*\bsrc\s*=\s*(["'])(.*?)\1[^>]*>/gi,
-    (m, quote, rawSrc) => {
-      const src = normalizeAngleWrapped(rawSrc);
-
-      // NEVER delete remote images
-      if (isHttpUrl(src)) return m;
-
-      if (predicate(src)) {
-        report.push(`[HTML] ${filePath}: ${m}`);
-        return "";
-      }
-      return m;
-    }
-  );
-}
-
-function cleanupEmptyImageLines(content) {
-  // Remove lines that are just whitespace (created by deletions)
-  // Keep paragraph spacing reasonable
-  return content
-    .replace(/^[ \t]+\n/gm, "\n")
-    .replace(/\n{3,}/g, "\n\n");
-}
-
-function sanitizeContent(input, report, filePath) {
-  let content = input;
-
-  // 1) Remove placeholder / anchor images (Markdown)
-  content = removeMarkdownImageByUrlPredicate(
-    content,
-    (url) => isPlaceholderOrAnchor(String(url || "").trim()),
-    report,
-    filePath
-  );
-
-  // 2) Remove Typora weird anchors: ![](#Users/.../typora-user-images/xxx.png)
-  // Already covered by startsWith("#"), keep explicit for clarity (no-op if already removed).
-
-  // 3) Remove macOS local absolute paths in Markdown images
-  content = removeMarkdownImageByUrlPredicate(
-    content,
-    (url) => isMacLocalPath(String(url || "").trim()),
-    report,
-    filePath
-  );
-
-  // 4) Remove Windows local paths in Markdown images
-  content = removeMarkdownImageByUrlPredicate(
-    content,
-    (url) => isWindowsLocalPath(String(url || "").trim()),
-    report,
-    filePath
-  );
-
-  // 5) Remove "directory as image" in Markdown images
-  content = removeMarkdownImageByUrlPredicate(
-    content,
-    (url) => looksLikeDirectoryAsImage(String(url || "").trim()),
-    report,
-    filePath
-  );
-
-  // 6) HTML <img src="...">: remove the same bad local/placeholder patterns
-  content = removeHtmlImageBySrcPredicate(
-    content,
-    (src) => {
-      const s = String(src || "").trim();
-      if (isPlaceholderOrAnchor(s)) return true;
-      if (isMacLocalPath(s)) return true;
-      if (isWindowsLocalPath(s)) return true;
-      if (looksLikeDirectoryAsImage(s)) return true;
-      return false;
-    },
-    report,
-    filePath
-  );
-
-  content = cleanupEmptyImageLines(content);
-  return content;
-}
-
-function walkDir(dir) {
+function walkMdFiles(dir) {
   const out = [];
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const ent of entries) {
     const p = path.join(dir, ent.name);
-    if (ent.isDirectory()) out.push(...walkDir(p));
+    if (ent.isDirectory()) out.push(...walkMdFiles(p));
     else if (ent.isFile() && p.toLowerCase().endsWith(".md")) out.push(p);
   }
   return out;
 }
 
+function isHttpUrl(u) {
+  return /^https?:\/\//i.test(String(u || "").trim());
+}
+
+function normalizeAngleWrapped(u) {
+  const s = String(u || "").trim();
+  if (s.startsWith("<") && s.endsWith(">")) return s.slice(1, -1).trim();
+  return s;
+}
+
+function isMacLocal(u) {
+  // /Users/... or file:///Users/...
+  return /^(?:file:\/\/\/)?\/Users\/.+/i.test(u);
+}
+
+function isWindowsLocal(u) {
+  // C:\... or C:/... or file:///C:/...
+  return /^(?:file:\/\/\/)?[A-Za-z]:(?:\\|\/).+/.test(u);
+}
+
+function isPlaceholderOrAnchor(u) {
+  // empty, "#", "#xxx" (includes "#Users/..." from Typora)
+  const s = String(u || "").trim();
+  if (!s) return true;
+  if (s === "#") return true;
+  if (s.startsWith("#")) return true;
+  return false;
+}
+
+/**
+ * Pragmatic Markdown image regex: ![alt](url)
+ * Not perfect for nested parentheses, but works for typical links.
+ */
+function sanitizeMarkdownImages(content, fileRelPath, removed) {
+  return content.replace(/!\[([^\]]*)\]\(\s*([^)]+?)\s*\)/g, (match, alt, rawUrl) => {
+    const url = normalizeAngleWrapped(rawUrl);
+
+    // ✅ 任何外链图片一律不动（核心保证：不会误删 /user/ 这种）
+    if (isHttpUrl(url)) return match;
+
+    // ✅ 只删除明确危险/占位/本地路径
+    if (isPlaceholderOrAnchor(url) || isMacLocal(url) || isWindowsLocal(url)) {
+      removed.push(`[MD] ${fileRelPath}: ${match}`);
+      return "";
+    }
+
+    return match;
+  });
+}
+
+/**
+ * HTML img tag sanitize: <img ... src="...">
+ */
+function sanitizeHtmlImages(content, fileRelPath, removed) {
+  return content.replace(
+    /<img\b[^>]*\bsrc\s*=\s*(["'])(.*?)\1[^>]*>/gi,
+    (match, quote, rawSrc) => {
+      const src = normalizeAngleWrapped(rawSrc);
+
+      // ✅ 外链不动
+      if (isHttpUrl(src)) return match;
+
+      if (isPlaceholderOrAnchor(src) || isMacLocal(src) || isWindowsLocal(src)) {
+        removed.push(`[HTML] ${fileRelPath}: ${match}`);
+        return "";
+      }
+      return match;
+    }
+  );
+}
+
+function cleanupBlankLines(content) {
+  // 删除图片行后可能留下多余空行，做个轻量清理
+  return content
+    .replace(/^[ \t]+\n/gm, "\n")
+    .replace(/\n{3,}/g, "\n\n");
+}
+
 function main() {
-  if (!fs.existsSync(DOCS_DIR)) {
-    console.error(`❌ docs dir not found: ${DOCS_DIR}`);
+  if (!fs.existsSync(TARGET_DIR)) {
+    console.error(`❌ target dir not found: ${TARGET_DIR}`);
     process.exit(1);
   }
 
-  const files = walkDir(DOCS_DIR);
-  let changed = 0;
-  const removedReport = [];
+  const files = walkMdFiles(TARGET_DIR);
+  let changedFiles = 0;
+  const removed = [];
 
   for (const file of files) {
     const before = fs.readFileSync(file, "utf8");
-    const after = sanitizeContent(before, removedReport, path.relative(process.cwd(), file));
+    const rel = path.relative(ROOT, file);
+
+    let after = before;
+    after = sanitizeMarkdownImages(after, rel, removed);
+    after = sanitizeHtmlImages(after, rel, removed);
+    after = cleanupBlankLines(after);
 
     if (after !== before) {
       fs.writeFileSync(file, after, "utf8");
-      changed += 1;
+      changedFiles += 1;
     }
   }
 
-  // Write report (useful when someone says "my image disappeared")
+  // report
   try {
-    if (removedReport.length > 0) {
-      fs.writeFileSync(REPORT_PATH, removedReport.join("\n") + "\n", "utf8");
+    if (removed.length > 0) {
+      fs.writeFileSync(REPORT_PATH, removed.join("\n") + "\n", "utf8");
+      console.log(`🧾 removal report: ${path.relative(ROOT, REPORT_PATH)} (${removed.length} entries)`);
     } else {
-      // keep repo clean: remove old report if nothing removed this run
       if (fs.existsSync(REPORT_PATH)) fs.unlinkSync(REPORT_PATH);
     }
-  } catch (e) {
-    // report is optional; ignore
+  } catch {
+    // ignore report errors
   }
 
-  console.log(`✅ sanitize done. changed files: ${changed}`);
-  if (removedReport.length > 0) {
-    console.log(`🧾 removal report: ${path.relative(process.cwd(), REPORT_PATH)} (${removedReport.length} entries)`);
-  }
+  console.log(`✅ sanitize done. changed files: ${changedFiles}`);
 }
 
 main();
