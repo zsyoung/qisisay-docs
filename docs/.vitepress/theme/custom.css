@@ -1,0 +1,38 @@
+:root {
+  --vp-c-brand: #2563eb; /* 调整为更稳重的金融蓝 */
+  --vp-c-brand-next: #3b82f6;
+}
+
+/* 优化文章列表样式 */
+.vp-doc ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.vp-doc li {
+  margin: 8px 0;
+  padding: 10px;
+  border-radius: 8px;
+  background-color: var(--vp-c-bg-soft);
+  transition: transform 0.2s, background-color 0.2s;
+  border: 1px solid transparent;
+}
+
+.vp-doc li:hover {
+  background-color: var(--vp-c-bg-mute);
+  transform: translateX(5px);
+  border-color: var(--vp-c-brand-soft);
+}
+
+/* 隐藏时间线列表前的默认圆点 */
+.vp-doc li::before {
+  display: none;
+}
+
+/* 让日期和标题更有层次感 */
+.vp-doc li a {
+  text-decoration: none !important;
+  font-weight: 500;
+ // display: flex;
+  gap: 12px;
+}
