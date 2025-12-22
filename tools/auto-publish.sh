@@ -43,8 +43,22 @@ fi
 
 log "Changes detected. Running pipeline..."
 
-# 流水线
+# ===== 流水线 =====
 bash scripts/sync-content.sh
+
+# ===== 草稿剔除（关键）：源稿前 5 行有 #draft，则从 docs 构建输入移除（只删 docs，不动源稿）=====
+# 这样本地 npm run docs:build 也不会生成草稿页面
+find "$REPO_DIR/日更" -type f -name "*.md" -print0 \
+| while IFS= read -r -d '' src; do
+    if head -n 5 "$src" 2>/dev/null | rg -qi '^#draft'; then
+      rel="${src#"$REPO_DIR/日更/"}"
+      dst="$REPO_DIR/docs/日更/$rel"
+      rm -f "$dst"
+      log "Draft removed from docs build input: $rel"
+    fi
+  done
+# ================================================================================================
+
 node scripts/sanitize-filenames.js
 node scripts/sanitize-md-images.js
 node scripts/generate-timeline.js
@@ -57,23 +71,26 @@ npm run docs:build
 # 暂存全部
 git add -A
 
-# ====== 关键：把草稿文件从提交中排除（但保留在本地） ======
-# 规则：docs/日更 下，任一 md 文件前 5 行出现 "#draft" => 该文件不提交
-DRAFT_FILES="$(rg -l -n --max-count 1 '^#draft' docs/日更 --glob '*.md' --context 0 --before-context 0 --after-context 0 --ignore-case -U \
-  | while read -r f; do
+# ======（可选保险）草稿排除：含 #draft 的源稿不提交（但其它照发）======
+# 这段不是必须（因为上面已经从 docs 输入删了），但保留能防止误提交源稿目录里的草稿
+DRAFT_SRC_FILES="$(
+  find "$REPO_DIR/日更" -type f -name "*.md" -print0 \
+  | while IFS= read -r -d '' f; do
       head -n 5 "$f" 2>/dev/null | rg -qi '^#draft' && echo "$f" || true
-    done)"
+    done
+)"
 
-if [ -n "${DRAFT_FILES:-}" ]; then
-  log "Draft files detected (will NOT be committed):"
-  echo "$DRAFT_FILES" | tee -a "$LOG_FILE"
+if [ -n "${DRAFT_SRC_FILES:-}" ]; then
+  log "Draft source files detected (will NOT be committed):"
+  echo "$DRAFT_SRC_FILES" | tee -a "$LOG_FILE"
 
-  # 取消暂存这些草稿文件（让它们留在本地修改态，但不进 commit）
   while IFS= read -r f; do
-    [ -n "$f" ] && git reset -q -- "$f" || true
-  done <<< "$DRAFT_FILES"
+    [ -z "$f" ] && continue
+    rel="${f#"$REPO_DIR/"/}"
+    git reset -q -- "$rel" || true
+  done <<< "$DRAFT_SRC_FILES"
 fi
-# ===========================================================
+# =================================================================
 
 # 如果此时没有可提交内容，就退出（避免空提交）
 if [ -z "$(git diff --cached --name-only)" ]; then

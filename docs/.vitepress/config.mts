@@ -42,6 +42,24 @@ export default defineConfig({
           items: [{ text: '时间线总览', link: '/timeline/' }]
         }
       ]
+    },
+    // 在 themeConfig 内部添加
+    search: {
+      provider: 'local', // 启用内置本地搜索 
+      options: {
+        translations: {
+          button: { buttonText: '搜索文档', buttonAriaLabel: '搜索文档' },
+          modal: { noResultsText: '无法找到相关结果', resetButtonTitle: '清除查询条件', footer: { selectText: '选择', navigateText: '切换', closeText: '关闭' } }
+        }
+      }
+    },
+    outline: {
+      level: [2, 3], // 让右侧目录显示更深层级的标题
+      label: '本页大纲'
+    },
+    lastUpdated: {
+      text: '最后更新于',
+      formatOptions: { dateStyle: 'full', timeStyle: 'medium' }
     }
   }
 })
