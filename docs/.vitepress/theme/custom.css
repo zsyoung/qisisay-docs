@@ -33,6 +33,5 @@
 .vp-doc li a {
   text-decoration: none !important;
   font-weight: 500;
- // display: flex;
   gap: 12px;
 }
