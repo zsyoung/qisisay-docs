@@ -53,6 +53,7 @@ export default defineConfig({
           text: '📅 历年文章',
           collapsed: false,
           items: [
+            { text: '2026年度', link: '/timeline/2026' },
             { text: '2025年度', link: '/timeline/2025' },
             { text: '2024年度', link: '/timeline/2024' },
             { text: '2023年度', link: '/timeline/2023' },
