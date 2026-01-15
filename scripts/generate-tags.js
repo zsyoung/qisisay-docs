@@ -8,7 +8,7 @@ const TIMELINE_INDEX = path.join(TIMELINE_DIR, 'index.md')
 
 // 你想要的主题列表（= 生成哪些 tag 页）
 // 没有文章 tags 的前提下，只能用“标题关键词命中”这种确定性规则
-const TAGS = ['周报', 'ETF', '港股', '恒生', '动量', '沪深300', '红利', '小盘']
+const TAGS = ['周报', 'ETF', '港股', '恒生', '动量', '沪深300', '红利', '小盘', '套利', '教程', '策略']
 
 function ensureDir(p) {
   fs.mkdirSync(p, { recursive: true })
