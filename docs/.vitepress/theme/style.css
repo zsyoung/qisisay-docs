@@ -4,7 +4,7 @@
   max-height: none !important; /* 核心：取消高度限制 */
   max-width: 100% !important;  /* 宽度最大 100% */
   width: auto !important;      /* 保持纵横比 */
-  margin: 1.5rem auto !important;  居中并增加上下间距 
+  margin: 1.5rem auto !important;  /*居中并增加上下间距*/ 
   border-radius: 4px;
 }
 
