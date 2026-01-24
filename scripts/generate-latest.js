@@ -39,7 +39,7 @@ items.sort((a, b) => {
 
 const latest = items.slice(0, 7)
 
-let md = `## 最近更新\n\n`
+let md = "" // 去掉标题
 latest.forEach(item => {
   md += `${item.line}\n`
 })

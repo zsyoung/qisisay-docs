@@ -1,0 +1,42 @@
+/* 强制解除截图中的限制 */
+.VPDoc .content main img,
+.vp-doc img {
+  max-height: none !important; /* 核心：取消高度限制 */
+  max-width: 100% !important;  /* 宽度最大 100% */
+  width: auto !important;      /* 保持纵横比 */
+  margin: 1.5rem auto !important;  居中并增加上下间距 
+  border-radius: 4px;
+}
+
+/* 扩大正文容器宽度，给图片更多展示空间 */
+:root {
+  --vp-content-max-width: 960px !important; 
+}
+
+/* 缩小头像尺寸（比默认小20%，可调整width值） */
+.VPHomeHero .VPImage.image-src {
+  width: 160px !important; /* 原默认约200px，缩小后更精致 */
+  height: 160px !important;
+  border-radius: 50% !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15) !important;
+  /*object-fit: cover !important;*/
+  /*cursor: pointer;  鼠标悬浮显示“小手”，提示可交互 */
+  /*transition: box-shadow 0.3s ease;*/
+}
+
+
+/* 针对移动端的适配 */
+@media (max-width: 768px) {
+  .VPDoc .content main img {
+    margin: 0.5rem auto !important;
+  }
+
+  /* 缩小头像尺寸（比默认小20%，可调整width值） */
+.VPHomeHero .VPImage.image-src {
+  width: 120px !important; /* 原默认约200px，缩小后更精致 */
+  height: 120px !important;
+  border-radius: 50% !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15) !important;
+}
+
+}

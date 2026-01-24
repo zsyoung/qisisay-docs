@@ -3,20 +3,21 @@
     "version": "1.0.0",
     "description": "",
     "main": "index.js",
-    "scripts":
-    {
+    "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1",
         "docs:dev": "vitepress dev docs",
         "docs:build": "vitepress build docs",
         "docs:preview": "vitepress preview docs",
         "docs:gen": "node scripts/generate-timeline.js && node scripts/generate-latest.js && node scripts/generate-tags.js"
     },
-    "keywords":
-    [],
+    "keywords": [],
     "author": "",
     "license": "ISC",
-    "devDependencies":
-    {
+    "devDependencies": {
+        "sass-embedded": "^1.97.3",
         "vitepress": "^1.6.4"
+    },
+    "dependencies": {
+        "@sugarat/theme": "^0.5.14"
     }
 }

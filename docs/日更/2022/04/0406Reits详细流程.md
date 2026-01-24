@@ -1,3 +1,9 @@
+---
+date: 2022-04-06
+---
+
+# Reits详细流程
+
 大家好，我是启四，长期分享套利机会。
 
 ## 一、REITs申购详细流程
@@ -23,6 +29,8 @@
 下面是我摘自 @越女事务所 的咨询客服图，供大家参考。
 
 ![](https://mmbiz.qpic.cn/mmbiz_jpg/A6tXjZlBsZRu9gCOGPo4fmsxZaA10lsXrTNaicAic0cBWvDygvPQdT5FWRvIW1DWXJNdIaIGbIdOYs9NpzV1lMzg/640?wx_fmt=jpeg&wxfrom=5&wx_lazy=1&wx_co=1)
+
+
 
 ### 2、认购费用？
 
@@ -91,4 +99,3 @@
 **关于发债信号和潜伏方法**，我在这篇文章写过：[涨幅12.96%，这两只有机会上车](https://mp.weixin.qq.com/s/d3bvW0-FysgpsccKSiRoWQ)
 
 全文完。
-
